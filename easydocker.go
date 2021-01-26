@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"sync"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -26,10 +25,7 @@ type Pool struct {
 	maxWaitForRetry time.Duration
 
 	networks   map[string]types.NetworkResource // network id => network info
-	networksMu sync.RWMutex                     // used to guard networks map
-
-	containers   map[string]types.ContainerJSON // container id => container info
-	containersMu sync.RWMutex                   // used to guard containers map
+	containers map[string]types.ContainerJSON   // container id => container info
 }
 
 // NewPool creates a new pool.
@@ -60,18 +56,22 @@ func NewPool(endpoint string) (*Pool, error) {
 		client:          cli,
 		maxWaitForRetry: defaultMaxWaitRetryTime,
 
-		networks: make(map[string]types.NetworkResource),
+		networks:   make(map[string]types.NetworkResource),
+		containers: make(map[string]types.ContainerJSON),
 	}, nil
 }
 
 // Close stops running actions, removes created networks and containers.
 func (p *Pool) Close() error {
 	p.cancel()
-	if err := p.removeContainers(); err != nil {
-		return err
-	}
+
 	if err := p.removeNetworks(); err != nil {
 		return err
 	}
+
+	if err := p.removeContainers(); err != nil {
+		return err
+	}
+
 	return nil
 }

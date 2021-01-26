@@ -8,31 +8,26 @@ import (
 )
 
 // CreateNetwork creates docker network
-func (p *Pool) CreateNetwork(name string) (types.NetworkResource, error) {
+func (p *Pool) CreateNetwork(name string) (string, error) {
 	resp, err := p.client.NetworkCreate(p.ctx, name, types.NetworkCreate{
 		CheckDuplicate: true,
 	})
 	if err != nil {
-		return types.NetworkResource{}, fmt.Errorf("NetworkCreate: %w", err)
+		return "", fmt.Errorf("NetworkCreate: %w", err)
 	}
 
 	networkResource, err := p.client.NetworkInspect(p.ctx, resp.ID, types.NetworkInspectOptions{})
 	if err != nil {
-		return types.NetworkResource{}, fmt.Errorf("NetworkInspect: %w", err)
+		return "", fmt.Errorf("NetworkInspect: %w", err)
 	}
 
-	p.networksMu.Lock()
-	defer p.networksMu.Unlock()
 	p.networks[networkResource.ID] = networkResource
 
-	return networkResource, nil
+	return networkResource.ID, nil
 }
 
 // removeNetworks removes created networks
 func (p *Pool) removeNetworks() error {
-	p.networksMu.Lock()
-	defer p.networksMu.Unlock()
-
 	ctx, cancel := context.WithTimeout(context.Background(), defaultDockerActionTimeout)
 	defer cancel()
 
