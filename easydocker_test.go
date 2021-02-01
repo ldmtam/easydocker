@@ -1,11 +1,15 @@
 package easydocker
 
 import (
+	"context"
+	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,7 +34,11 @@ func TestMain(m *testing.M) {
 func TestMySQL(t *testing.T) {
 	containerID, err := pool.CreateContainer(
 		"mysql",
-		WithEnvironment("MYSQL_ROOT_PASSWORD=example"),
+		WithEnvironment(
+			"MYSQL_ROOT_PASSWORD=example",
+			"MYSQL_DATABASE=test",
+		),
+		WithExposedPorts("3306"),
 	)
 	assert.Nil(t, err)
 	if len(containerID) == 0 {
@@ -39,13 +47,22 @@ func TestMySQL(t *testing.T) {
 
 	printContainerInfo(containerID)
 
-	port, err := pool.GetHostPort(containerID, "3306")
+	hostport, err := pool.GetHostPort(containerID, "3306")
 	assert.Nil(t, err)
-	t.Logf("Docker Port: %v => Hostport: %v\n", "3306", port)
+	t.Logf("Docker Port: %v => Hostport: %v\n", "3306", hostport)
 
-	port, err = pool.GetHostPort(containerID, "33060")
+	err = pool.Retry(context.Background(), func() error {
+		db, err := sql.Open("mysql",
+			fmt.Sprintf("root:example@tcp(%v)/test?charset=utf8mb4&parseTime=True&loc=Local", hostport),
+		)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+
+		return db.Ping()
+	})
 	assert.Nil(t, err)
-	t.Logf("Docker Port: %v => Hostport: %v\n", "33060", port)
 }
 
 func TestMySQLWithMount(t *testing.T) {

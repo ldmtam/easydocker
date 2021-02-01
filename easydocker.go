@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"time"
 
+	retry "github.com/avast/retry-go"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 )
@@ -59,6 +60,15 @@ func NewPool(endpoint string) (*Pool, error) {
 		networks:   make(map[string]types.NetworkResource),
 		containers: make(map[string]types.ContainerJSON),
 	}, nil
+}
+
+// Retry is a retry helper. For example: wait to mysql to boot up
+func (p *Pool) Retry(ctx context.Context, fn func() error) error {
+	return retry.Do(
+		fn,
+		retry.Attempts(20),
+		retry.Context(ctx),
+	)
 }
 
 // Close stops running actions, removes created networks and containers.
